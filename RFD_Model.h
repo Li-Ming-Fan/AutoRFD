@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "FloatMat.h"
 #include "DecisionTree.h"
@@ -22,11 +23,14 @@ public:
 	int * ArrayNumNodes;
 	//
 	// Paras for random
-	float FeaturePortion;      //
-	float SamplePortion;      //
+	float PortionFeatures;      //
+	float PortionSamples;      //
+	//
+	unsigned int SeedForRandom;
+	static const unsigned int DEFAULT_SEED = 0;
 	//
 	// Paras for single tree grow
-	static ParasBDT paras;
+	ParasBDT paras;
 	//
 	// 不剪枝，特征重用
 	//
@@ -43,8 +47,10 @@ public:
 		NumTypes = 0;
 		//
 		// Paras for random
-		FeaturePortion = 0.5;
-		SamplePortion = 0.5;
+		PortionSamples = 0.2;
+		PortionFeatures = 0.5;
+		//
+		SeedForRandom = DEFAULT_SEED;
 		//
 	} // construct
 	~RFD_Model()
@@ -168,12 +174,24 @@ public:
 	// utilities
 	int grow(FloatMat & Samples, FloatMat & Labels, float * ArrayFeatureStrides)
 	{
-		// paras for grow
-		ArrayTrees[0].paras.copyFrom(paras);
 		//
 		int NumSamples;
 		Samples.getMatSize(NumSamples, NumFeatures);
 		Labels.getMatSize(NumSamples, NumTypes);
+		//
+		int num_samples = (int) (NumSamples * PortionSamples);
+		int num_features = (int) (NumFeatures * PortionFeatures);
+		//
+		if (num_samples < 5)    //
+		{
+			printf("Error, too few samples.\n");
+			return -1;
+		}
+		if (num_features < 1)    //
+		{
+			printf("Error, too few features.\n");
+			return -2;
+		}
 		//
 		float * ArrayStrides = new float[NumFeatures];
 		if (ArrayFeatureStrides == NULL)
@@ -185,55 +203,63 @@ public:
 			for (int f = 0; f < NumFeatures; f++) ArrayStrides[f] = ArrayFeatureStrides[f];
 		}
 		//
-		int num_samples, num_features;
+		int posi_sample = 0;
+		int posi_feature = 0;
 		int * array_samples = new int[NumSamples];
 		int * array_features = new int[NumFeatures];
 		float * array_strides = new float[NumFeatures];
+		unsigned int seed = 0;
+		//
+		if (SeedForRandom != DEFAULT_SEED)
+		{
+			seed = SeedForRandom;
+		}
+		else
+		{
+			seed = (unsigned int) time(NULL);
+			SeedForRandom = seed;
+		}
+		//
+		srand(seed);      //
+		//
+		printf("\n");
+		printf("seed_for_random, %d,\n", seed);
 		//
 		for (int i = 0; i < NumTrees; i++)
 		{
+			printf("tree, %d, ", i);
+
 			// 随机选择样本
-			num_samples = 0;
-			for (int r = 0; r < NumSamples; r++)
+			posi_sample = 0;
+			while (posi_sample != num_samples)
 			{
-				if ((rand()%100)/100 < SamplePortion)
+				posi_sample = 0;
+				for (int r = 0; r < NumSamples; r++)
 				{
-					array_samples[num_samples] = r;
-					num_samples++;
+					if ((rand()%100)/100.0 < PortionSamples)
+					{
+						array_samples[posi_sample] = r;
+						posi_sample++;
+					}
 				}
 			}
 			// 随机选择特征
-			if (FeaturePortion > 1)
+			posi_feature = 0;
+			while (posi_feature != num_features)
 			{
-				float ratio = 1.0 * FeaturePortion / NumFeatures;
-				int NumFloor = (int) FeaturePortion;
-				//
-				num_features = 0;
-				while (num_features != NumFloor)
-				{
-					num_features = 0;
-					for (int r = 0; r < NumFeatures; r++)
-					{
-						if ((rand()%100)/100 < ratio)
-						{
-							array_features[num_features] = r;
-							num_features++;
-						}
-					}
-				}// while
-			}
-			else
-			{
-				num_features = 0;
+				posi_feature = 0;
 				for (int r = 0; r < NumFeatures; r++)
 				{
-					if ((rand()%100)/100 < FeaturePortion)
+					if ((rand()%100)/100.0 < PortionFeatures)
 					{
-						array_features[num_features] = r;
-						num_features++;
+						array_features[posi_feature] = r;
+						posi_feature++;
 					}
 				}
-			}// if FeaturePortion
+			}// while
+			//
+			printf("randomly bagged, ");
+
 			//
 			// 复制提取
 			FloatMat SamplesPreUse(num_samples, NumFeatures);
@@ -242,11 +268,11 @@ public:
 			//
 			float * labels_curr = NULL;
 			int posi_s = 0;
-			int LenS = sizeof(float) * NumFeatures;
+			int LenCopy = sizeof(float) * NumFeatures;
 			//
 			for (int s = 0; s < num_samples; s++, posi_s += NumFeatures)
 			{
-				memcpy(SamplesPreUse.data + posi_s, Samples.data + array_samples[s]*NumFeatures, LenS);
+				memcpy(SamplesPreUse.data + posi_s, Samples.data + array_samples[s]*NumFeatures, LenCopy);
 				//
 				labels_curr = Labels.data + array_samples[s]*NumTypes;
 				//
@@ -268,12 +294,16 @@ public:
 				cblas_scopy(num_samples, SamplesPreUse.data + array_features[f], NumFeatures, samples_in_use.data + f, num_features);
 			}
 			//
+			printf("extract-copied, growing ... , ");
+
 
 			// 单棵树生成
+			ArrayTrees[i].paras.copyFrom(paras);
 			ArrayTrees[i].grow(samples_in_use, labels_in_use, array_features, array_strides);
 			//
 			ArrayNumNodes[i] = ArrayTrees[i].NumNodes;
 			//
+			printf("tree %d growing finished, \n", i);
 
 		}// for i
 
@@ -347,10 +377,10 @@ public:
 		}// for s
 
 		//
-		if (PredictedPositives > 0) performance[0] = TruePredictedPositives/PredictedPositives;
+		if (PredictedPositives > 0) performance[0] = 1.0 * TruePredictedPositives/PredictedPositives;
 		else performance[0] = 0;
 		//
-		performance[1] = TruePredictedPositives/TruePositives;
+		performance[1] = 1.0 * TruePredictedPositives/TruePositives;
 		//
 		performance[2] = TruePositives;
 		performance[3] = PredictedPositives;

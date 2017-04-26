@@ -1,0 +1,17 @@
+FlagLoadFromFile: 1
+FlagTraining: 0
+FlagFiles: 1
+NumInput: 108
+NumOutput: 2
+SeedForRandom: 0
+PortionSamples: 0.6000
+PortionFeatures: 0.2000
+NumTrees: 60
+MaxDepth: 20
+TypeFocus: 0
+Criteria: 0.75
+MinInstances: 1
+MinInfoGain: 0.0001
+MinStride: 0.0010
+ImpurityType: 0
+End.

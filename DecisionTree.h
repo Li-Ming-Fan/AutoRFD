@@ -15,12 +15,12 @@ class ParasBDT
 public:
 	// Paras for grow
 	//
-	static int MaxDepth;
-	static int MinInstancesPerNode;
-	static float MinInfoGain;
+	int MaxDepth;
+	int MinInstancesPerNode;
+	float MinInfoGain;
 	//
-	static float MinStride;
-	static int FlagImpurity;
+	float MinStride;
+	int FlagImpurity;
 	//
 	static const int DT_GINI = 0;
 	static const int DT_ENT = 1;  // entropy
@@ -123,13 +123,21 @@ public:
 		if (num_samples <= paras.MinInstancesPerNode) FlagLeaf = -1;
 		//
 		// 信息增益，找出最好分割
-		int num_left, num_right;
+		int num_left = 0;
+		int num_right = 0;
+		int feature_best = -1;
+		//
 		if (FlagLeaf == 0)
 		{
-			float info_gain = searchBestSplit(Samples, ArrayTargets, ArrayFeatures, ArrayStrides,
-					feature_index, value_split, num_left, num_right);
+			float info_gain = searchBestSplit(Samples, ArrayTargets, ArrayStrides,
+					feature_best, value_split, num_left, num_right);
+			//
 			if (info_gain <= paras.MinInfoGain) FlagLeaf = -1;
+
+			//printf("info_gain: %f\n", info_gain);
+			//printf("num_left, num_right: %d, %d\n", num_left, num_right);
 		}
+
 		//
 		// 叶节点
 		if (FlagLeaf == -1)
@@ -144,12 +152,14 @@ public:
 		}
 		//
 		// 未到叶节点
-		FloatMat samples_left(num_features, num_left);
-		FloatMat samples_right(num_features, num_right);
+		feature_index = ArrayFeatures[feature_best];
+		//
+		FloatMat samples_left(num_left, num_features);
+		FloatMat samples_right(num_right, num_features);
 		float * targets_left = new float[num_left];
 		float * targets_right = new float[num_right];
 		//
-		splitSamplesAndTargets(Samples, ArrayTargets, feature_index, value_split,
+		splitSamplesAndTargets(Samples, ArrayTargets, feature_best, value_split,
 				samples_left, samples_right, targets_left, targets_right);
 		//
 		// 增加左节点
@@ -168,7 +178,7 @@ public:
 	//
 
 	//
-	float searchBestSplit(FloatMat & Samples, float * ArrayTypes, int * ArrayFeatures, float * ArrayStrides,
+	float searchBestSplit(FloatMat & Samples, float * ArrayTypes, float * ArrayStrides,
 			int & feature_best, float & value_best, int & num_left, int & num_right)
 	{
 		int num_samples, num_features;
@@ -191,12 +201,13 @@ public:
 			cblas_scopy(num_samples, Samples.data + f, num_features, values, 1);
 			//void * memcpy(void * dest, const void * src, size_t n);
 			memcpy(types, ArrayTypes, sizeof(float) * num_samples);
-			//
+			// sort
 			quickSortAssociated(values, types, 0, num_samples - 1);
+
 			//
 			value_curr = values[0] + ArrayStrides[f]/2;
 			//
-			for (int s = 1; s < num_samples; s++)
+			for (int s = 0; s < num_samples; s++)
 			{
 				if (values[s] <= value_curr) continue;    //
 				//
@@ -207,7 +218,7 @@ public:
 				impurity_temp /= num_samples;
 				//
 				info_gain_temp = impurity_before - impurity_temp;
-				info_gain_temp *=  1.0 * (num_samples/s) * (num_samples/num_right);
+				//info_gain_temp *=  1.0 * (num_samples/s) * (num_samples/num_right);
 				//
 				if (info_gain_temp > info_gain_max)
 				{
@@ -216,10 +227,13 @@ public:
 					value_best = value_curr;
 					num_left = s;
 				}
+
 				//
 				value_curr += ArrayStrides[f];
-
+				while (value_curr <= values[s]) value_curr += ArrayStrides[f];
+				//
 			} // for s
+
 		}// for f
 		//
 		delete [] values;
@@ -227,7 +241,7 @@ public:
 		//
 
 		//
-		feature_best = ArrayFeatures[feature_best];
+		num_right = num_samples - num_left;
 		//
 		return info_gain_max;
 	}
@@ -247,11 +261,13 @@ public:
 		float * data_sample = Samples.data;
 		float* data_value = Samples.data + feature_best;
 		//
+		int LenCopy = sizeof(float) * num_features;
+		//
 		for (int s = 0; s < num_samples; s++, data_sample += num_features, data_value += num_features)
 		{
 			if (*data_value <= value_best)
 			{
-				memcpy(data_left, data_sample, num_features);
+				memcpy(data_left, data_sample, LenCopy);
 				data_left += num_features;
 				//
 				array_left[posi_left] = ArrayTargets[s];
@@ -259,7 +275,7 @@ public:
 			}
 			else
 			{
-				memcpy(data_right, data_sample, num_features);
+				memcpy(data_right, data_sample, LenCopy);
 				data_right += num_features;
 				//
 				array_right[posi_right] = ArrayTargets[s];
@@ -358,6 +374,8 @@ public:
 			if (flag_same == 0)
 			{
 				array_unique[num_unique] = array_types[s];
+				array_count[num_unique] = 1;
+				//
 				num_unique++;
 			}
 
@@ -501,7 +519,7 @@ public:
 	//
 	// 遍历采用：根->左->右序，
 	//
-	static ParasBDT paras;
+	ParasBDT paras;
 	//
 
 	//
@@ -549,7 +567,7 @@ public:
 		NodeRoot->writeNodesToFile(fp, CountNodes);
 		fprintf(fp, "\n");
 		//
-		fprintf(fp, "BinaryDecisionTreeEnd: %d.\n", CountNodes);
+		fprintf(fp, "BinaryDecisionTreeEnd: %d\n", CountNodes);
 		//
 		return CountNodes;
 	}
