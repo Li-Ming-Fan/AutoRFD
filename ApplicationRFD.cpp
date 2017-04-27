@@ -336,11 +336,11 @@ void loadConfiguration()
 	//
 
 	//
-	FILE * fid = fopen("AutoGFN_Configuration.txt","r");
+	FILE * fid = fopen("AutoRFD_Configuration.txt","r");
 
 	if (fid == NULL)
 	{
-		fid = fopen("AutoGFN_Configuration.txt","w");
+		fid = fopen("AutoRFD_Configuration.txt","w");
 
 		fprintf(fid, "FlagLoadFromFile: %d\n", FlagLoadFromFile);
 		fprintf(fid, "FlagTraining: %d\n", FlagTraining);

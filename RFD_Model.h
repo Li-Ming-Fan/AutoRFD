@@ -294,7 +294,7 @@ public:
 				cblas_scopy(num_samples, SamplesPreUse.data + array_features[f], NumFeatures, samples_in_use.data + f, num_features);
 			}
 			//
-			printf("extract-copied, growing ... , ");
+			printf("extract-copied, growing ... ");
 
 
 			// µ¥¿ÃÊ÷Éú³É
