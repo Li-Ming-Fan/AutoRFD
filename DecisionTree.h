@@ -434,7 +434,7 @@ public:
 	//
 	int writeNodesToFile(FILE * fp, int & CountNodes)
 	{
-		fprintf(fp, "%d, %d, %d, %f, ", id, depth, feature_index, value_split);
+		fprintf(fp, "%d, %d, %d, %f,\n", id, depth, feature_index, value_split);
 		CountNodes++;
 		//
 		if (left == NULL) return CountNodes;
@@ -446,21 +446,11 @@ public:
 	}
 	int loadNodesFromFile(FILE * fp, int & CountNodes)
 	{
-		// 读取一个节点的数据
+		// 读取一行，一个节点的数据
 		int LenBuff = 128;
 		char * buff = new char[LenBuff];
-		char ch;
+		fgets(buff, LenBuff, fp);       //
 		//
-		int Posi = 0;
-		int NumRead = 0;
-		while((ch = fgetc(fp)) != EOF)
-		{
-			buff[Posi] = ch;
-			Posi++;
-			//
-			if (ch == ',') NumRead++;
-			if (NumRead == 4) break;
-		}
 		// 解析数据
 		char * str_begin = buff;
 		char * str_end = strchr(str_begin, ',');
@@ -565,7 +555,6 @@ public:
 		//
 		int CountNodes = 0;
 		NodeRoot->writeNodesToFile(fp, CountNodes);
-		fprintf(fp, "\n");
 		//
 		fprintf(fp, "BinaryDecisionTreeEnd: %d\n", CountNodes);
 		//
